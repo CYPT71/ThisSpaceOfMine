@@ -6,13 +6,7 @@
 #include <CommonLib/BlockLibrary.hpp>
 #include <CommonLib/DeformedChunk.hpp>
 #include <CommonLib/FlatChunk.hpp>
-#include <CommonLib/Utility/SignedDistanceFunctions.hpp>
-#include <Nazara/Math/Ray.hpp>
-#include <Nazara/JoltPhysics3D/JoltCollider3D.hpp>
-#include <Nazara/Utility/VertexStruct.hpp>
-#include <fmt/format.h>
 #include <PerlinNoise.hpp>
-#include <random>
 
 namespace tsom
 {
@@ -26,9 +20,29 @@ namespace tsom
 
 	Chunk& Planet::AddChunk(const Nz::Vector3ui& indices, const Nz::FunctionRef<void(BlockIndex* blocks)>& initCallback)
 	{
+		Nz::Vector3f chunkOffset = GetChunkOffset(indices);
+
 		std::size_t index = GetChunkIndex(indices);
 		assert(!m_chunks[index].chunk);
-		m_chunks[index].chunk = std::make_unique<FlatChunk>(*this, indices, Nz::Vector3ui{ ChunkSize }, m_tileSize);
+
+		// Check if chunk has to be deformed (check if it has a deformed corner)
+		auto IsDeformedChunk = [&]()
+		{
+			Nz::Boxf aabb(chunkOffset, Nz::Vector3f(ChunkSize) * m_tileSize);
+
+			for (const Nz::Vector3f& corner : aabb.GetCorners())
+			{
+				if (!DeformedChunk::DeformPosition(corner, GetCenter(), m_cornerRadius).ApproxEqual(corner, 0.001f))
+					return true;
+			}
+
+			return false;
+		};
+
+		if (IsDeformedChunk())
+			m_chunks[index].chunk = std::make_unique<DeformedChunk>(*this, indices, Nz::Vector3ui{ ChunkSize }, m_tileSize, GetCenter() - chunkOffset, m_cornerRadius);
+		else
+			m_chunks[index].chunk = std::make_unique<FlatChunk>(*this, indices, Nz::Vector3ui{ ChunkSize }, m_tileSize);
 
 		if (initCallback)
 			m_chunks[index].chunk->InitBlocks(initCallback);

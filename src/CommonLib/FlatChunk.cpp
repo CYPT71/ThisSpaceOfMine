@@ -132,18 +132,7 @@ namespace tsom
 		float fZ = indices.z * m_blockSize;
 
 		Nz::Boxf box(fX, fZ, fY, m_blockSize, m_blockSize, m_blockSize);
-		Nz::EnumArray<Nz::BoxCorner, Nz::Vector3f> corners {
-			box.GetCorner(Nz::BoxCorner::FarLeftBottom),
-			box.GetCorner(Nz::BoxCorner::FarLeftTop),
-			box.GetCorner(Nz::BoxCorner::FarRightBottom),
-			box.GetCorner(Nz::BoxCorner::FarRightTop),
-			box.GetCorner(Nz::BoxCorner::NearLeftBottom),
-			box.GetCorner(Nz::BoxCorner::NearLeftTop),
-			box.GetCorner(Nz::BoxCorner::NearRightBottom),
-			box.GetCorner(Nz::BoxCorner::NearRightTop)
-		};
-
-		return corners;
+		return box.GetCorners();
 	}
 }
 

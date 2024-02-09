@@ -161,7 +161,7 @@ namespace tsom
 
 		std::shared_ptr<Nz::StaticMesh> staticMesh = std::make_shared<Nz::StaticMesh>(std::move(vertexBuffer), std::move(indexBuffer));
 		staticMesh->GenerateAABB();
-		staticMesh->GenerateTangents();
+		staticMesh->GenerateTangents(); //< FIXME: Tangent generation should be fixed
 
 		Nz::Mesh chunkMesh;
 		chunkMesh.CreateStatic();

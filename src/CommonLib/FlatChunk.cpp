@@ -124,16 +124,6 @@ namespace tsom
 
 		return pos;
 	}
-
-	Nz::EnumArray<Nz::BoxCorner, Nz::Vector3f> FlatChunk::ComputeVoxelCorners(const Nz::Vector3ui& indices) const
-	{
-		float fX = indices.x * m_blockSize;
-		float fY = indices.y * m_blockSize;
-		float fZ = indices.z * m_blockSize;
-
-		Nz::Boxf box(fX, fZ, fY, m_blockSize, m_blockSize, m_blockSize);
-		return box.GetCorners();
-	}
 }
 
 

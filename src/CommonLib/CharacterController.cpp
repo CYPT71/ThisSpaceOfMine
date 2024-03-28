@@ -5,7 +5,7 @@
 #include <CommonLib/CharacterController.hpp>
 #include <CommonLib/Direction.hpp>
 #include <CommonLib/GameConstants.hpp>
-#include <CommonLib/Planet.hpp>
+#include <CommonLib/GravityController.hpp>
 #include <Nazara/Physics3D/PhysWorld3D.hpp>
 #include <Nazara/Physics3D/RigidBody3D.hpp>
 #include <fmt/ostream.h>
@@ -19,7 +19,7 @@ namespace tsom
 	CharacterController::CharacterController() :
 	m_cameraRotation(Nz::EulerAnglesf::Zero()),
 	m_referenceRotation(Nz::Quaternionf::Identity()),
-	m_planet(nullptr),
+	m_gravityController(nullptr),
 	m_allowInputRotation(false),
 	m_isFlying(false)
 	{
@@ -35,9 +35,9 @@ namespace tsom
 		Nz::Vector3f newUp = charUp;
 
 		// Update up vector if player is around a gravity well
-		if (m_planet && m_planet->GetGravityFactor(m_characterPosition) > 0.3f)
+		if (m_gravityController && m_gravityController->ComputeGravityAcceleration(m_characterPosition) > 0.3f)
 		{
-			Nz::Vector3f targetUp = m_planet->ComputeUpDirection(characterBasePosition);
+			Nz::Vector3f targetUp = m_gravityController->ComputeUpDirection(characterBasePosition);
 			newUp = Nz::Vector3f::RotateTowards(charUp, targetUp, Constants::GravityMaxRotationSpeed * elapsedTime);
 
 			if (Nz::Vector3f previousUp = newRotation * Nz::Vector3f::Up(); !previousUp.ApproxEqual(newUp, 0.00001f))
@@ -87,13 +87,13 @@ namespace tsom
 		Nz::Vector3f up = character.GetUp();
 
 		Nz::Quaternionf movementRotation;
-		if (m_planet)
+		if (m_gravityController)
 		{
 			if (!m_isFlying)
 			{
 				// Apply gravity
 				Nz::Vector3f position = character.GetPosition();
-				velocity -= m_planet->GetGravityFactor(position) * m_planet->ComputeUpDirection(character.GetPosition()) * elapsedTime;
+				velocity -= m_gravityController->ComputeGravityAcceleration(position) * m_gravityController->ComputeUpDirection(character.GetPosition()) * elapsedTime;
 			}
 
 			movementRotation = character.GetRotation();

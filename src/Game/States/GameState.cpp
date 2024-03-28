@@ -13,6 +13,7 @@
 #include <CommonLib/NetworkSession.hpp>
 #include <CommonLib/PlayerInputs.hpp>
 #include <CommonLib/Utils.hpp>
+#include <CommonLib/Components/ChunkComponent.hpp>
 #include <CommonLib/Components/PlanetComponent.hpp>
 #include <Game/States/ConnectionState.hpp>
 #include <Game/States/StateData.hpp>
@@ -70,8 +71,6 @@ namespace tsom
 			cameraComponent.UpdateRenderMask(tsom::Constants::RenderMask3D & ~tsom::Constants::RenderMaskLocalPlayer);
 			cameraComponent.UpdateZNear(0.1f);
 		}
-
-		m_planet = std::make_unique<ClientPlanet>(1.f, 16.f, 9.81f);
 
 		m_sunLightEntity = CreateEntity();
 		{
@@ -137,47 +136,6 @@ namespace tsom
 		m_onControlledEntityChanged.Connect(stateData.sessionHandler->OnControlledEntityChanged, [&](entt::handle entity)
 		{
 			m_controlledEntity = entity;
-		});
-
-		m_onChunkCreate.Connect(stateData.sessionHandler->OnChunkCreate, [&](const Packets::ChunkCreate& chunkCreate)
-		{
-			ChunkIndices indices(chunkCreate.chunkLocX, chunkCreate.chunkLocY, chunkCreate.chunkLocZ);
-
-			m_planet->AddChunk(chunkCreate.chunkId, indices);
-		});
-
-		m_onChunkDestroy.Connect(stateData.sessionHandler->OnChunkDestroy, [&](const Packets::ChunkDestroy& chunkDestroy)
-		{
-			m_planet->RemoveChunk(chunkDestroy.chunkId);
-		});
-
-		m_onChunkReset.Connect(stateData.sessionHandler->OnChunkReset, [&](const Packets::ChunkReset& chunkReset)
-		{
-			Chunk* chunk = m_planet->GetChunkByNetworkIndex(chunkReset.chunkId);
-			if (!chunk)
-			{
-				fmt::print(fg(fmt::color::red), "ChunkReset handler: unknown chunk {}\n", chunkReset.chunkId);
-				return;
-			}
-
-			chunk->LockWrite();
-			chunk->Reset([&](BlockIndex* blocks)
-			{
-				for (BlockIndex blockContent : chunkReset.content)
-					*blocks++ = blockContent;
-			});
-			chunk->UnlockWrite();
-		});
-
-		m_onChunkUpdate.Connect(stateData.sessionHandler->OnChunkUpdate, [&](const Packets::ChunkUpdate& chunkUpdate)
-		{
-			Chunk* chunk = m_planet->GetChunkByNetworkIndex(chunkUpdate.chunkId);
-			chunk->LockWrite();
-
-			for (auto&& [blockPos, blockIndex] : chunkUpdate.updates)
-				chunk->UpdateBlock({ blockPos.x, blockPos.y, blockPos.z }, Nz::SafeCast<BlockIndex>(blockIndex));
-
-			chunk->UnlockWrite();
 		});
 
 		m_onControlledEntityStateUpdate.Connect(stateData.sessionHandler->OnControlledEntityStateUpdate, [&](InputIndex inputIndex, const Packets::EntitiesStateUpdate::ControlledCharacter& characterStates)
@@ -315,7 +273,7 @@ namespace tsom
 					dynSettings.allowSleeping = false;
 
 					entt::handle debugEntity = stateData.world->CreateEntity();
-					debugEntity.emplace<PlanetComponent>().planet = m_planet.get();
+					//debugEntity.emplace<PlanetComponent>().planet = m_planet.get();
 					debugEntity.emplace<Nz::NodeComponent>(cameraNode.GetPosition());
 					debugEntity.emplace<Nz::RigidBody3DComponent>(dynSettings);
 
@@ -463,8 +421,6 @@ namespace tsom
 
 		auto& stateData = GetStateData();
 
-		m_planetEntities = std::make_unique<ClientChunkEntities>(*stateData.app, *stateData.world, *m_planet, *stateData.blockLibrary);
-
 		m_remainingCameraRotation = Nz::EulerAnglesf(0.f, 0.f, 0.f);
 		m_predictedCameraRotation = m_remainingCameraRotation;
 		m_incomingCameraRotation = Nz::EulerAnglesf::Zero();
@@ -496,11 +452,13 @@ namespace tsom
 			auto& stateData = GetStateData();
 
 			Nz::Vector3f hitPos, hitNormal;
+			entt::handle hitEntity;
 			auto filter = [&](const Nz::Physics3DSystem::RaycastHit& hitInfo) -> std::optional<float>
 			{
-				//if (hitInfo.hitEntity != m_planetEntity)
-				//  return std::nullopt;
+				if (!hitInfo.hitEntity.try_get<ChunkComponent>())
+					return std::nullopt;
 
+				hitEntity = hitInfo.hitEntity;
 				hitPos = hitInfo.hitPosition;
 				hitNormal = hitInfo.hitNormal;
 				return hitInfo.fraction;
@@ -511,20 +469,23 @@ namespace tsom
 			auto& physSystem = stateData.world->GetSystem<Nz::Physics3DSystem>();
 			if (physSystem.RaycastQuery(cameraNode.GetPosition(), cameraNode.GetPosition() + cameraNode.GetForward() * 10.f, filter))
 			{
+				auto& chunkComponent = hitEntity.get<ChunkComponent>();
+
+				const Chunk& chunk = *chunkComponent.chunk;
+				const ChunkContainer& chunkContainer = chunk.GetContainer();
+
+				const ClientPlanet& fixme = Nz::SafeCast<const ClientPlanet&>(chunkContainer);
+
 				if (event.button == Nz::Mouse::Left)
 				{
 					// Mine
-					Nz::Vector3f blockPos = hitPos - hitNormal * m_planet->GetTileSize() * 0.25f;
-					const Chunk* chunk = m_planet->GetChunk(m_planet->GetChunkIndicesByPosition(blockPos));
-					if (!chunk)
-						return;
-
-					auto coordinates = chunk->ComputeCoordinates(blockPos);
+					Nz::Vector3f blockPos = hitPos - hitNormal * chunkContainer.GetTileSize() * 0.25f;
+					auto coordinates = chunk.ComputeCoordinates(blockPos);
 					if (!coordinates)
 						return;
 
 					Packets::MineBlock mineBlock;
-					mineBlock.chunkId = m_planet->GetChunkNetworkIndex(chunk);
+					mineBlock.chunkId = fixme.GetChunkNetworkIndex(&chunk);
 					mineBlock.voxelLoc.x = coordinates->x;
 					mineBlock.voxelLoc.y = coordinates->y;
 					mineBlock.voxelLoc.z = coordinates->z;
@@ -534,17 +495,13 @@ namespace tsom
 				else
 				{
 					// Place
-					Nz::Vector3f blockPos = hitPos + hitNormal * m_planet->GetTileSize() * 0.25f;
-					const Chunk* chunk = m_planet->GetChunk(m_planet->GetChunkIndicesByPosition(blockPos));
-					if (!chunk)
-						return;
-
-					auto coordinates = chunk->ComputeCoordinates(blockPos);
+					Nz::Vector3f blockPos = hitPos + hitNormal * chunkContainer.GetTileSize() * 0.25f;
+					auto coordinates = chunk.ComputeCoordinates(blockPos);
 					if (!coordinates)
 						return;
 
 					Packets::PlaceBlock placeBlock;
-					placeBlock.chunkId = m_planet->GetChunkNetworkIndex(chunk);
+					placeBlock.chunkId = fixme.GetChunkNetworkIndex(&chunk);
 					placeBlock.voxelLoc.x = coordinates->x;
 					placeBlock.voxelLoc.y = coordinates->y;
 					placeBlock.voxelLoc.z = coordinates->z;
@@ -565,7 +522,6 @@ namespace tsom
 		Nz::Mouse::SetRelativeMouseMode(false);
 
 		m_chatBox->Close();
-		m_planetEntities.reset();
 	}
 
 	bool GameState::Update(Nz::StateMachine& fsm, Nz::Time elapsedTime)
@@ -579,8 +535,6 @@ namespace tsom
 
 		if (m_debugOverlay)
 			m_debugOverlay->textDrawer.Clear();
-
-		m_planetEntities->Update();
 
 		m_tickAccumulator += elapsedTime;
 		while (m_tickAccumulator >= m_tickDuration)
@@ -633,7 +587,7 @@ namespace tsom
 				m_debugOverlay->textDrawer.AppendText(fmt::format("Position: {0:.3f};{1:.3f};{2:.3f}\n", characterPos.x, characterPos.y, characterPos.z));
 				m_debugOverlay->textDrawer.AppendText(fmt::format("Rotation: {0:.3f};{1:.3f};{2:.3f};{3:.3f}\n", characterRot.x, characterRot.y, characterRot.z, characterRot.w));
 
-				Nz::Vector3f up = m_planet->ComputeUpDirection(characterPos);
+				/*Nz::Vector3f up = m_planet->ComputeUpDirection(characterPos);
 				float gravity = m_planet->GetGravityFactor(characterPos);
 
 				m_debugOverlay->textDrawer.AppendText(fmt::format("Up direction: {0:.3f};{1:.3f};{2:.3f} - gravity: {3:.2f}\n", up.x, up.y, up.z, gravity));
@@ -647,7 +601,7 @@ namespace tsom
 				{
 					if (auto coordinates = chunk->ComputeCoordinates(characterPos))
 						m_debugOverlay->textDrawer.AppendText(fmt::format("Chunk block: {0};{1};{2}\n", coordinates->x, coordinates->y, coordinates->z));
-				}
+				}*/
 			}
 		}
 
@@ -676,80 +630,84 @@ namespace tsom
 		// Raycast
 		{
 			auto& physSystem = stateData.world->GetSystem<Nz::Physics3DSystem>();
-			Nz::Vector3f hitPos, hitNormal;
-			if (physSystem.RaycastQuery(cameraNode.GetPosition(), cameraNode.GetPosition() + cameraNode.GetForward() * 10.f, [&](const Nz::Physics3DSystem::RaycastHit& hitInfo) -> std::optional<float>
-				{
-					//if (hitInfo.hitEntity != m_planetEntity)
-					//  return std::nullopt;
 
-					hitPos = hitInfo.hitPosition;
-					hitNormal = hitInfo.hitNormal;
-					return hitInfo.fraction;
-				}))
+			Nz::Vector3f hitPos, hitNormal;
+			entt::handle hitEntity;
+			auto filter = [&](const Nz::Physics3DSystem::RaycastHit& hitInfo) -> std::optional<float>
 			{
+				if (!hitInfo.hitEntity.try_get<ChunkComponent>())
+					return std::nullopt;
+
+				hitEntity = hitInfo.hitEntity;
+				hitPos = hitInfo.hitPosition;
+				hitNormal = hitInfo.hitNormal;
+				return hitInfo.fraction;
+			};
+
+			if (physSystem.RaycastQuery(cameraNode.GetPosition(), cameraNode.GetPosition() + cameraNode.GetForward() * 10.f, filter))
+			{
+				auto& chunkComponent = hitEntity.get<ChunkComponent>();
+
+				const Chunk& chunk = *chunkComponent.chunk;
+				const ChunkContainer& chunkContainer = chunk.GetContainer();
+
 				debugDrawer.DrawLine(hitPos, hitPos + hitNormal * 0.2f, Nz::Color::Cyan());
 
-				Nz::Vector3f blockPos = hitPos - hitNormal * m_planet->GetTileSize() * 0.25f;
-
-				ChunkIndices chunkIndices = m_planet->GetChunkIndicesByPosition(blockPos);
-				const Chunk* chunk = m_planet->GetChunk(chunkIndices);
+				Nz::Vector3f blockPos = hitPos - hitNormal * chunkContainer.GetTileSize() * 0.25f;
 
 				if (m_debugOverlay && m_debugOverlay->mode >= 1)
 				{
-					const ChunkIndices& chunkIndices = chunk->GetIndices();
+					const ChunkIndices& chunkIndices = chunk.GetIndices();
 					m_debugOverlay->textDrawer.AppendText(fmt::format("{0:-^{1}}\n", "Target", 20));
-					m_debugOverlay->textDrawer.AppendText(fmt::format("Target chunk: {0};{1};{2}{3}\n", chunkIndices.x, chunkIndices.y, chunkIndices.z, chunk ? "" : " (not loaded)"));
+					m_debugOverlay->textDrawer.AppendText(fmt::format("Target chunk: {0};{1};{2}\n", chunkIndices.x, chunkIndices.y, chunkIndices.z));
 				}
 
-				if (chunk)
+				if (auto coordinates = chunk.ComputeCoordinates(blockPos))
 				{
-					if (auto coordinates = chunk->ComputeCoordinates(blockPos))
+					if (m_debugOverlay && m_debugOverlay->mode >= 1)
 					{
-						if (m_debugOverlay && m_debugOverlay->mode >= 1)
-						{
-							m_debugOverlay->textDrawer.AppendText(fmt::format("Target chunk block: {0};{1};{2}\n", coordinates->x, coordinates->y, coordinates->z));
+						m_debugOverlay->textDrawer.AppendText(fmt::format("Target chunk block: {0};{1};{2}\n", coordinates->x, coordinates->y, coordinates->z));
 
-							Nz::Vector3ui chunkCount(5);
+						Nz::Vector3ui chunkCount(5);
 
-							Nz::Vector3i maxHeight((Nz::Vector3i(chunkCount) + Nz::Vector3i(1)) / 2);
-							maxHeight *= int(Planet::ChunkSize);
+						Nz::Vector3i maxHeight((Nz::Vector3i(chunkCount) + Nz::Vector3i(1)) / 2);
+						maxHeight *= int(Planet::ChunkSize);
 
-							const ChunkIndices& chunkIndices = chunk->GetIndices();
-							Nz::Vector3i blockIndices = chunkIndices * int(Planet::ChunkSize) + Nz::Vector3i(coordinates->x, coordinates->z, coordinates->y) - Nz::Vector3i(int(Planet::ChunkSize)) / 2;
-							m_debugOverlay->textDrawer.AppendText(fmt::format("Target block global indices: {0};{1};{2}\n", blockIndices.x, blockIndices.y, blockIndices.z));
-							unsigned int depth = Nz::SafeCaster(std::min({
-								maxHeight.x - std::abs(blockIndices.x),
-								maxHeight.y - std::abs(blockIndices.z),
-								maxHeight.z - std::abs(blockIndices.y)
-							}));
-							m_debugOverlay->textDrawer.AppendText(fmt::format("Target block depth: {0}\n", depth));
-						}
-
-						auto cornerPos = chunk->ComputeVoxelCorners(*coordinates);
-						Nz::Vector3f offset = m_planet->GetChunkOffset(chunk->GetIndices());
-
-						constexpr Nz::EnumArray<Direction, std::array<Nz::BoxCorner, 4>> directionToCorners = {
-							// Back
-							std::array{ Nz::BoxCorner::NearLeftTop, Nz::BoxCorner::NearRightTop, Nz::BoxCorner::NearRightBottom, Nz::BoxCorner::NearLeftBottom },
-							// Down
-							std::array{ Nz::BoxCorner::NearLeftBottom, Nz::BoxCorner::FarLeftBottom, Nz::BoxCorner::FarRightBottom, Nz::BoxCorner::NearRightBottom },
-							// Front
-							std::array{ Nz::BoxCorner::FarLeftTop, Nz::BoxCorner::FarRightTop, Nz::BoxCorner::FarRightBottom, Nz::BoxCorner::FarLeftBottom },
-							// Left
-							std::array{ Nz::BoxCorner::FarLeftTop, Nz::BoxCorner::NearLeftTop, Nz::BoxCorner::NearLeftBottom, Nz::BoxCorner::FarLeftBottom },
-							// Right
-							std::array{ Nz::BoxCorner::FarRightTop, Nz::BoxCorner::NearRightTop, Nz::BoxCorner::NearRightBottom, Nz::BoxCorner::FarRightBottom },
-							// Up
-							std::array{ Nz::BoxCorner::NearLeftTop, Nz::BoxCorner::FarLeftTop, Nz::BoxCorner::FarRightTop, Nz::BoxCorner::NearRightTop }
-						};
-
-						auto& corners = directionToCorners[DirectionFromNormal(hitNormal)];
-
-						debugDrawer.DrawLine(offset + cornerPos[corners[0]], offset + cornerPos[corners[1]], Nz::Color::Green());
-						debugDrawer.DrawLine(offset + cornerPos[corners[1]], offset + cornerPos[corners[2]], Nz::Color::Green());
-						debugDrawer.DrawLine(offset + cornerPos[corners[2]], offset + cornerPos[corners[3]], Nz::Color::Green());
-						debugDrawer.DrawLine(offset + cornerPos[corners[3]], offset + cornerPos[corners[0]], Nz::Color::Green());
+						const ChunkIndices& chunkIndices = chunk.GetIndices();
+						Nz::Vector3i blockIndices = chunkIndices * int(Planet::ChunkSize) + Nz::Vector3i(coordinates->x, coordinates->z, coordinates->y) - Nz::Vector3i(int(Planet::ChunkSize)) / 2;
+						m_debugOverlay->textDrawer.AppendText(fmt::format("Target block global indices: {0};{1};{2}\n", blockIndices.x, blockIndices.y, blockIndices.z));
+						unsigned int depth = Nz::SafeCaster(std::min({
+							maxHeight.x - std::abs(blockIndices.x),
+							maxHeight.y - std::abs(blockIndices.z),
+							maxHeight.z - std::abs(blockIndices.y)
+						}));
+						m_debugOverlay->textDrawer.AppendText(fmt::format("Target block depth: {0}\n", depth));
 					}
+
+					auto cornerPos = chunk.ComputeVoxelCorners(*coordinates);
+					Nz::Vector3f offset = chunkContainer.GetChunkOffset(chunk.GetIndices());
+
+					constexpr Nz::EnumArray<Direction, std::array<Nz::BoxCorner, 4>> directionToCorners = {
+						// Back
+						std::array{ Nz::BoxCorner::NearLeftTop, Nz::BoxCorner::NearRightTop, Nz::BoxCorner::NearRightBottom, Nz::BoxCorner::NearLeftBottom },
+						// Down
+						std::array{ Nz::BoxCorner::NearLeftBottom, Nz::BoxCorner::FarLeftBottom, Nz::BoxCorner::FarRightBottom, Nz::BoxCorner::NearRightBottom },
+						// Front
+						std::array{ Nz::BoxCorner::FarLeftTop, Nz::BoxCorner::FarRightTop, Nz::BoxCorner::FarRightBottom, Nz::BoxCorner::FarLeftBottom },
+						// Left
+						std::array{ Nz::BoxCorner::FarLeftTop, Nz::BoxCorner::NearLeftTop, Nz::BoxCorner::NearLeftBottom, Nz::BoxCorner::FarLeftBottom },
+						// Right
+						std::array{ Nz::BoxCorner::FarRightTop, Nz::BoxCorner::NearRightTop, Nz::BoxCorner::NearRightBottom, Nz::BoxCorner::FarRightBottom },
+						// Up
+						std::array{ Nz::BoxCorner::NearLeftTop, Nz::BoxCorner::FarLeftTop, Nz::BoxCorner::FarRightTop, Nz::BoxCorner::NearRightTop }
+					};
+
+					auto& corners = directionToCorners[DirectionFromNormal(hitNormal)];
+
+					debugDrawer.DrawLine(offset + cornerPos[corners[0]], offset + cornerPos[corners[1]], Nz::Color::Green());
+					debugDrawer.DrawLine(offset + cornerPos[corners[1]], offset + cornerPos[corners[2]], Nz::Color::Green());
+					debugDrawer.DrawLine(offset + cornerPos[corners[2]], offset + cornerPos[corners[3]], Nz::Color::Green());
+					debugDrawer.DrawLine(offset + cornerPos[corners[3]], offset + cornerPos[corners[0]], Nz::Color::Green());
 				}
 			}
 		}

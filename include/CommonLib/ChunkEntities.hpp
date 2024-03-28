@@ -27,7 +27,7 @@ namespace tsom
 	class TSOM_COMMONLIB_API ChunkEntities
 	{
 		public:
-			ChunkEntities(Nz::ApplicationBase& app, Nz::EnttWorld& world, const ChunkContainer& chunkContainer, const BlockLibrary& blockLibrary);
+			ChunkEntities(Nz::ApplicationBase& app, Nz::EnttWorld& world, ChunkContainer& chunkContainer, const BlockLibrary& blockLibrary);
 			ChunkEntities(const ChunkEntities&) = delete;
 			ChunkEntities(ChunkEntities&&) = delete;
 			~ChunkEntities();
@@ -42,9 +42,9 @@ namespace tsom
 
 		protected:
 			struct NoInit {};
-			ChunkEntities(Nz::ApplicationBase& app, Nz::EnttWorld& world, const ChunkContainer& chunkContainer, const BlockLibrary& blockLibrary, NoInit);
+			ChunkEntities(Nz::ApplicationBase& app, Nz::EnttWorld& world, ChunkContainer& chunkContainer, const BlockLibrary& blockLibrary, NoInit);
 
-			void CreateChunkEntity(const ChunkIndices& chunkIndices, const Chunk* chunk);
+			void CreateChunkEntity(const ChunkIndices& chunkIndices, Chunk* chunk);
 			void DestroyChunkEntity(const ChunkIndices& chunkIndices);
 			void FillChunks();
 			virtual void HandleChunkUpdate(const ChunkIndices& chunkIndices, const Chunk* chunk);
@@ -74,7 +74,7 @@ namespace tsom
 			Nz::ApplicationBase& m_application;
 			Nz::EnttWorld& m_world;
 			const BlockLibrary& m_blockLibrary;
-			const ChunkContainer& m_chunkContainer;
+			ChunkContainer& m_chunkContainer;
 			bool m_staticRigidBodies;
 	};
 }

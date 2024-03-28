@@ -62,6 +62,13 @@ namespace tsom
 				Nz::Vector3f position;
 			};
 
+			struct PlanetData
+			{
+				float cellSize;
+				float cornerRadius;
+				float gravity;
+			};
+
 			struct PlayerControlledData
 			{
 				PlayerIndex controllingPlayerId;
@@ -112,6 +119,7 @@ namespace tsom
 		struct ChunkCreate
 		{
 			Helper::ChunkId chunkId;
+			Helper::EntityId entityId;
 			CompressedSigned<Nz::Int32> chunkLocX;
 			CompressedSigned<Nz::Int32> chunkLocY;
 			CompressedSigned<Nz::Int32> chunkLocZ;
@@ -124,11 +132,13 @@ namespace tsom
 		struct ChunkDestroy
 		{
 			Helper::ChunkId chunkId;
+			Helper::EntityId entityId;
 		};
 
 		struct ChunkReset
 		{
 			Helper::ChunkId chunkId;
+			Helper::EntityId entityId;
 			std::vector<BlockIndex> content;
 		};
 
@@ -141,6 +151,7 @@ namespace tsom
 			};
 
 			Helper::ChunkId chunkId;
+			Helper::EntityId entityId;
 			std::vector<BlockUpdate> updates;
 		};
 
@@ -148,8 +159,10 @@ namespace tsom
 		{
 			struct EntityData
 			{
+				Nz::UInt8 environmentId;
 				Helper::EntityId entityId;
 				Helper::EntityState initialStates;
+				std::optional<Helper::PlanetData> planet;
 				std::optional<Helper::PlayerControlledData> playerControlled;
 				std::optional<Helper::ShipData> ship;
 			};

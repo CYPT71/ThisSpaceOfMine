@@ -45,6 +45,8 @@ namespace tsom
 			void HandlePacket(Packets::EntitiesCreation&& entitiesCreation);
 			void HandlePacket(Packets::EntitiesDelete&& entitiesDelete);
 			void HandlePacket(Packets::EntitiesStateUpdate&& stateUpdate);
+			void HandlePacket(Packets::EnvironmentCreate&& envCreate);
+			void HandlePacket(Packets::EnvironmentDestroy&& envDestroy);
 			void HandlePacket(Packets::GameData&& gameData);
 			void HandlePacket(Packets::PlayerLeave&& playerLeave);
 			void HandlePacket(Packets::PlayerJoin&& playerJoin);
@@ -56,7 +58,7 @@ namespace tsom
 			NazaraSignal(OnPlayerLeave, const std::string& /*playerName*/);
 			NazaraSignal(OnPlayerJoined, const std::string& /*playerName*/);
 
-			static constexpr Nz::UInt32 InvalidEntity = 0xFFFFFFFF;
+			static constexpr Packets::Helper::EntityId InvalidEntity = 0xFFFFFFFF;
 
 		private:
 			struct PlayerInfo;
@@ -65,6 +67,11 @@ namespace tsom
 			void SetupEntity(entt::handle entity, Packets::Helper::PlanetData&& entityData);
 			void SetupEntity(entt::handle entity, Packets::Helper::PlayerControlledData&& entityData);
 			void SetupEntity(entt::handle entity, Packets::Helper::ShipData&& entityData);
+
+			struct Environment
+			{
+				Nz::Bitset<Nz::UInt64> entities;
+			};
 
 			struct PlayerInfo
 			{
@@ -77,9 +84,10 @@ namespace tsom
 			};
 
 			entt::handle m_playerControlledEntity;
-			tsl::hopscotch_map<Nz::UInt32, entt::handle> m_networkIdToEntity;
 			std::optional<PlayerModel> m_playerModel;
 			std::shared_ptr<PlayerAnimationAssets> m_playerAnimAssets;
+			std::vector<entt::handle> m_networkIdToEntity;
+			std::vector<std::optional<Environment>> m_environments; //< FIXME: Nz::SparseVector
 			std::vector<std::optional<PlayerInfo>> m_players; //< FIXME: Nz::SparseVector
 			Nz::ApplicationBase& m_app;
 			Nz::EnttWorld& m_world;

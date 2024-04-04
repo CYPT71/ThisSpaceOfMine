@@ -8,6 +8,7 @@
 #define TSOM_COMMONLIB_CHUNKENTITIES_HPP
 
 #include <CommonLib/ChunkContainer.hpp>
+#include <Nazara/Core/Node.hpp>
 #include <entt/entt.hpp>
 #include <tsl/hopscotch_map.h>
 #include <tsl/hopscotch_set.h>
@@ -33,7 +34,6 @@ namespace tsom
 			~ChunkEntities();
 
 			void SetParentEntity(entt::handle entity);
-			void SetStaticRigidBodies(bool isStatic);
 
 			void Update();
 
@@ -48,6 +48,7 @@ namespace tsom
 			void DestroyChunkEntity(const ChunkIndices& chunkIndices);
 			void FillChunks();
 			virtual void HandleChunkUpdate(const ChunkIndices& chunkIndices, const Chunk* chunk);
+			void OnParentNodeInvalidated(const Nz::Node* node);
 			void UpdateChunkEntity(const ChunkIndices& chunkIndices);
 
 			struct UpdateJob
@@ -66,6 +67,7 @@ namespace tsom
 			NazaraSlot(ChunkContainer, OnChunkAdded, m_onChunkAdded);
 			NazaraSlot(ChunkContainer, OnChunkRemove, m_onChunkRemove);
 			NazaraSlot(ChunkContainer, OnChunkUpdated, m_onChunkUpdated);
+			NazaraSlot(Nz::Node, OnNodeInvalidation, m_onParentNodeInvalidated);
 
 			tsl::hopscotch_map<ChunkIndices, std::shared_ptr<UpdateJob>> m_updateJobs;
 			tsl::hopscotch_map<ChunkIndices, entt::handle> m_chunkEntities;
@@ -75,7 +77,6 @@ namespace tsom
 			Nz::EnttWorld& m_world;
 			const BlockLibrary& m_blockLibrary;
 			ChunkContainer& m_chunkContainer;
-			bool m_staticRigidBodies;
 	};
 }
 

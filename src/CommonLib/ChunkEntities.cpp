@@ -25,8 +25,7 @@ namespace tsom
 	m_application(application),
 	m_world(world),
 	m_blockLibrary(blockLibrary),
-	m_chunkContainer(chunkContainer),
-	m_staticRigidBodies(true)
+	m_chunkContainer(chunkContainer)
 	{
 		m_onChunkAdded.Connect(chunkContainer.OnChunkAdded, [this](ChunkContainer* /*emitter*/, Chunk* chunk)
 		{
@@ -57,11 +56,13 @@ namespace tsom
 	void ChunkEntities::SetParentEntity(entt::handle entity)
 	{
 		m_parentEntity = entity;
-	}
-
-	void ChunkEntities::SetStaticRigidBodies(bool isStatic)
-	{
-		m_staticRigidBodies = isStatic;
+		if (m_parentEntity)
+		{
+			auto& parentNode = m_parentEntity.get<Nz::NodeComponent>();
+			m_onParentNodeInvalidated.Connect(parentNode.OnNodeInvalidation, this, &ChunkEntities::OnParentNodeInvalidated);
+		}
+		else
+			m_onParentNodeInvalidated.Disconnect();
 	}
 
 	void ChunkEntities::Update()
@@ -100,10 +101,7 @@ namespace tsom
 		chunkComponent.chunk = chunk;
 		chunkComponent.parentEntity = m_parentEntity;
 
-		if (m_staticRigidBodies)
-			chunkEntity.emplace<Nz::RigidBody3DComponent>(Nz::RigidBody3D::StaticSettings(nullptr));
-		else
-			chunkEntity.emplace<Nz::RigidBody3DComponent>(Nz::RigidBody3D::DynamicSettings(nullptr, 100.f));
+		chunkEntity.emplace<Nz::RigidBody3DComponent>(Nz::RigidBody3D::StaticSettings(nullptr));
 
 		assert(!m_chunkEntities.contains(chunkIndices));
 		m_chunkEntities.insert_or_assign(chunkIndices, chunkEntity);
@@ -173,6 +171,19 @@ namespace tsom
 		});
 
 		m_updateJobs.insert_or_assign(chunkIndices, std::move(updateJob));
+	}
+
+	void ChunkEntities::OnParentNodeInvalidated(const Nz::Node* /*node*/)
+	{
+		// Refresh physical position
+		for (auto it = m_chunkEntities.begin(); it != m_chunkEntities.end(); ++it)
+		{
+			entt::handle chunkEntity = it->second;
+
+			auto& chunkNode = chunkEntity.get<Nz::NodeComponent>();
+			auto& rigidBody = chunkEntity.get<Nz::RigidBody3DComponent>();
+			rigidBody.TeleportTo(chunkNode.GetGlobalPosition(), chunkNode.GetGlobalRotation());
+		}
 	}
 
 	void ChunkEntities::UpdateChunkEntity(const ChunkIndices& chunkIndices)

@@ -44,9 +44,7 @@ namespace tsom
 			void BroadcastChatMessage(std::string message, std::optional<PlayerIndex> senderIndex);
 
 			ServerPlayer* CreatePlayer(NetworkSession* session, std::string nickname);
-			ServerShipEnvironment* CreateShip();
 			void DestroyPlayer(PlayerIndex playerIndex);
-			void DestroyShip(ServerShipEnvironment* ship);
 
 			template<typename F> void ForEachPlayer(F&& functor);
 			template<typename F> void ForEachPlayer(F&& functor) const;
@@ -56,6 +54,11 @@ namespace tsom
 			inline Nz::Time GetTickDuration() const;
 
 			Nz::Time Update(Nz::Time elapsedTime);
+
+			// TEMP
+			ServerShipEnvironment* CreateShip();
+			void DestroyShip(ServerShipEnvironment* ship);
+			ServerPlanetEnvironment& GetPlanetEnvironment();
 
 			ServerInstance& operator=(const ServerInstance&) = delete;
 			ServerInstance& operator=(ServerInstance&&) = delete;

@@ -76,6 +76,11 @@ namespace tsom
 		return player;
 	}
 
+	ServerPlanetEnvironment& ServerInstance::GetPlanetEnvironment()
+	{
+		return *m_planetEnvironment;
+	}
+
 	ServerShipEnvironment* ServerInstance::CreateShip()
 	{
 		auto shipEnv = std::make_unique<ServerShipEnvironment>(*this);

@@ -242,12 +242,19 @@ namespace tsom
 		{
 			serializer &= data.tickIndex;
 			serializer &= data.id;
+			Helper::Serialize(serializer, data.states);
 		}
 
 		void Serialize(PacketSerializer& serializer, EnvironmentDestroy& data)
 		{
 			serializer &= data.tickIndex;
 			serializer &= data.id;
+		}
+
+		void Serialize(PacketSerializer& serializer, EnvironmentUpdate& data)
+		{
+			serializer &= data.id;
+			Helper::Serialize(serializer, data.states);
 		}
 
 		void Serialize(PacketSerializer& serializer, GameData& data)
@@ -298,6 +305,11 @@ namespace tsom
 		void Serialize(PacketSerializer& serializer, SendChatMessage& data)
 		{
 			serializer &= data.message;
+		}
+
+		void Serialize(PacketSerializer& serializer, UpdatePlayerEnvironment& data)
+		{
+			serializer &= data.newEnvironment;
 		}
 
 		void Serialize(PacketSerializer& serializer, UpdatePlayerInputs& data)

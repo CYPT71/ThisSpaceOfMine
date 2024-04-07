@@ -25,6 +25,16 @@ namespace tsom
 		return m_controlledEntity;
 	}
 
+	inline ServerEnvironment* ServerPlayer::GetControlledEntityEnvironment()
+	{
+		return m_controlledEntityEnvironment;
+	}
+
+	inline const ServerEnvironment* ServerPlayer::GetControlledEntityEnvironment() const
+	{
+		return m_controlledEntityEnvironment;
+	}
+
 	inline ServerEnvironment* ServerPlayer::GetRootEnvironment()
 	{
 		return m_rootEnvironment;

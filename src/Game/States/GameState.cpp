@@ -574,9 +574,12 @@ namespace tsom
 			}
 			else
 			{
+				const Nz::Node* environmentNode = characterNode.GetParent();
+				assert(environmentNode);
+
 				cameraNode.SetPosition(characterPos + characterRot * (Nz::Vector3f::Up() * Constants::PlayerCameraHeight));
 
-				Nz::Quaternionf cameraRotation = m_referenceRotation * Nz::Quaternionf(m_predictedCameraRotation);
+				Nz::Quaternionf cameraRotation = environmentNode->GetRotation() * m_referenceRotation * Nz::Quaternionf(m_predictedCameraRotation);
 				cameraRotation.Normalize();
 
 				cameraNode.SetRotation(cameraRotation);
@@ -687,7 +690,6 @@ namespace tsom
 					}
 
 					auto cornerPos = chunk.ComputeVoxelCorners(*coordinates);
-					Nz::Vector3f offset = chunkNode.GetGlobalPosition();
 
 					constexpr Nz::EnumArray<Direction, std::array<Nz::BoxCorner, 4>> directionToCorners = {
 						// Back
@@ -704,12 +706,13 @@ namespace tsom
 						std::array{ Nz::BoxCorner::NearLeftTop, Nz::BoxCorner::FarLeftTop, Nz::BoxCorner::FarRightTop, Nz::BoxCorner::NearRightTop }
 					};
 
-					auto& corners = directionToCorners[DirectionFromNormal(hitNormal)];
+					Nz::Vector3f localHitNormal = chunkNode.GetGlobalRotation().GetConjugate() * hitNormal;
+					auto& corners = directionToCorners[DirectionFromNormal(localHitNormal)];
 
-					debugDrawer.DrawLine(offset + cornerPos[corners[0]], offset + cornerPos[corners[1]], Nz::Color::Green());
-					debugDrawer.DrawLine(offset + cornerPos[corners[1]], offset + cornerPos[corners[2]], Nz::Color::Green());
-					debugDrawer.DrawLine(offset + cornerPos[corners[2]], offset + cornerPos[corners[3]], Nz::Color::Green());
-					debugDrawer.DrawLine(offset + cornerPos[corners[3]], offset + cornerPos[corners[0]], Nz::Color::Green());
+					debugDrawer.DrawLine(chunkNode.ToGlobalPosition(cornerPos[corners[0]]), chunkNode.ToGlobalPosition(cornerPos[corners[1]]), Nz::Color::Green());
+					debugDrawer.DrawLine(chunkNode.ToGlobalPosition(cornerPos[corners[1]]), chunkNode.ToGlobalPosition(cornerPos[corners[2]]), Nz::Color::Green());
+					debugDrawer.DrawLine(chunkNode.ToGlobalPosition(cornerPos[corners[2]]), chunkNode.ToGlobalPosition(cornerPos[corners[3]]), Nz::Color::Green());
+					debugDrawer.DrawLine(chunkNode.ToGlobalPosition(cornerPos[corners[3]]), chunkNode.ToGlobalPosition(cornerPos[corners[0]]), Nz::Color::Green());
 				}
 			}
 		}

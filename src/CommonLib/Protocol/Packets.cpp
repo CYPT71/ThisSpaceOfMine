@@ -35,7 +35,7 @@ namespace tsom
 				serializer &= data.position;
 				serializer &= data.rotation;
 			}
-			
+
 			void Serialize(PacketSerializer& serializer, EnvironmentTransform& data)
 			{
 				serializer &= data.translation;
@@ -266,6 +266,7 @@ namespace tsom
 
 		void Serialize(PacketSerializer& serializer, EnvironmentUpdate& data)
 		{
+			serializer &= data.tickIndex;
 			serializer &= data.id;
 			Helper::Serialize(serializer, data.transform);
 		}

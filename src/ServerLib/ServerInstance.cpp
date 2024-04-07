@@ -62,16 +62,9 @@ namespace tsom
 		ServerPlayer* player = m_players.Allocate(m_players.DeferConstruct, playerIndex);
 		std::construct_at(player, *this, Nz::SafeCast<PlayerIndex>(playerIndex), session, std::move(nickname));
 
-		player->UpdateEnvironment(m_planetEnvironment.get());
+		player->UpdateRootEnvironment(m_planetEnvironment.get());
 
 		m_newPlayers.UnboundedSet(playerIndex);
-
-		// Send all chunks
-		auto& playerVisibility = player->GetVisibilityHandler();
-		m_planetEnvironment->GetPlanet().ForEachChunk([&](const ChunkIndices& chunkIndices, Chunk& chunk)
-		{
-			playerVisibility.CreateChunk(m_planetEnvironment->GetPlanetEntity(), chunk);
-		});
 
 		return player;
 	}

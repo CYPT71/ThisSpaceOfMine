@@ -51,6 +51,8 @@ namespace tsom
 
 			inline Nz::ApplicationBase& GetApplication();
 			inline const BlockLibrary& GetBlockLibrary() const;
+			inline ServerPlayer* GetPlayer(PlayerIndex playerIndex);
+			inline const ServerPlayer* GetPlayer(PlayerIndex playerIndex) const;
 			inline Nz::Time GetTickDuration() const;
 
 			Nz::Time Update(Nz::Time elapsedTime);

@@ -7,7 +7,8 @@ namespace tsom
 	inline ServerPlayer::ServerPlayer(ServerInstance& instance, PlayerIndex playerIndex, NetworkSession* session, std::string nickname) :
 	m_nickname(std::move(nickname)),
 	m_session(session),
-	m_environment(nullptr),
+	m_controlledEntityEnvironment(nullptr),
+	m_rootEnvironment(nullptr),
 	m_visibilityHandler(m_session),
 	m_instance(instance),
 	m_playerIndex(playerIndex)
@@ -24,14 +25,14 @@ namespace tsom
 		return m_controlledEntity;
 	}
 
-	inline ServerEnvironment* ServerPlayer::GetEnvironment()
+	inline ServerEnvironment* ServerPlayer::GetRootEnvironment()
 	{
-		return m_environment;
+		return m_rootEnvironment;
 	}
 
-	inline const ServerEnvironment* ServerPlayer::GetEnvironment() const
+	inline const ServerEnvironment* ServerPlayer::GetRootEnvironment() const
 	{
-		return m_environment;
+		return m_rootEnvironment;
 	}
 
 	inline const std::string& ServerPlayer::GetNickname() const
@@ -72,5 +73,10 @@ namespace tsom
 	inline const SessionVisibilityHandler& ServerPlayer::GetVisibilityHandler() const
 	{
 		return m_visibilityHandler;
+	}
+
+	inline bool ServerPlayer::IsInEnvironment(const ServerEnvironment* environment)
+	{
+		return std::find(m_registeredEnvironments.begin(), m_registeredEnvironments.end(), environment) != m_registeredEnvironments.end();
 	}
 }

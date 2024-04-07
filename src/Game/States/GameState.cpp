@@ -472,6 +472,7 @@ namespace tsom
 			{
 				auto& chunkComponent = hitEntity.get<ChunkComponent>();
 				auto& chunkNetworkMap = chunkComponent.parentEntity.get<ChunkNetworkMapComponent>();
+				auto& chunkNode = hitEntity.get<Nz::NodeComponent>();
 
 				const Chunk& chunk = *chunkComponent.chunk;
 				const ChunkContainer& chunkContainer = chunk.GetContainer();
@@ -480,7 +481,7 @@ namespace tsom
 				{
 					// Mine
 					Nz::Vector3f blockPos = hitPos - hitNormal * chunkContainer.GetTileSize() * 0.25f;
-					auto coordinates = chunk.ComputeCoordinates(blockPos);
+					auto coordinates = chunk.ComputeCoordinates(chunkNode.ToLocalPosition(blockPos));
 					if (!coordinates)
 						return;
 
@@ -496,7 +497,7 @@ namespace tsom
 				{
 					// Place
 					Nz::Vector3f blockPos = hitPos + hitNormal * chunkContainer.GetTileSize() * 0.25f;
-					auto coordinates = chunk.ComputeCoordinates(blockPos);
+					auto coordinates = chunk.ComputeCoordinates(chunkNode.ToLocalPosition(blockPos));
 					if (!coordinates)
 						return;
 
@@ -560,8 +561,8 @@ namespace tsom
 		{
 			Nz::NodeComponent& characterNode = m_controlledEntity.get<Nz::NodeComponent>();
 
-			Nz::Vector3f characterPos = characterNode.GetPosition();
-			Nz::Quaternionf characterRot = characterNode.GetRotation();
+			Nz::Vector3f characterPos = characterNode.GetGlobalPosition();
+			Nz::Quaternionf characterRot = characterNode.GetGlobalRotation();
 
 			if (m_isCameraThirdPerson)
 			{
@@ -647,6 +648,7 @@ namespace tsom
 			if (physSystem.RaycastQuery(cameraNode.GetPosition(), cameraNode.GetPosition() + cameraNode.GetForward() * 10.f, filter))
 			{
 				auto& chunkComponent = hitEntity.get<ChunkComponent>();
+				auto& chunkNode = hitEntity.get<Nz::NodeComponent>();
 
 				const Chunk& chunk = *chunkComponent.chunk;
 				const ChunkContainer& chunkContainer = chunk.GetContainer();
@@ -662,7 +664,7 @@ namespace tsom
 					m_debugOverlay->textDrawer.AppendText(fmt::format("Target chunk: {0};{1};{2}\n", chunkIndices.x, chunkIndices.y, chunkIndices.z));
 				}
 
-				if (auto coordinates = chunk.ComputeCoordinates(blockPos))
+				if (auto coordinates = chunk.ComputeCoordinates(chunkNode.ToLocalPosition(blockPos)))
 				{
 					if (m_debugOverlay && m_debugOverlay->mode >= 1)
 					{
@@ -685,7 +687,7 @@ namespace tsom
 					}
 
 					auto cornerPos = chunk.ComputeVoxelCorners(*coordinates);
-					Nz::Vector3f offset = chunkContainer.GetChunkOffset(chunk.GetIndices());
+					Nz::Vector3f offset = chunkNode.GetGlobalPosition();
 
 					constexpr Nz::EnumArray<Direction, std::array<Nz::BoxCorner, 4>> directionToCorners = {
 						// Back

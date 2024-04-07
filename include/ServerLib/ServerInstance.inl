@@ -32,6 +32,16 @@ namespace tsom
 		return m_blockLibrary;
 	}
 
+	inline ServerPlayer* ServerInstance::GetPlayer(PlayerIndex playerIndex)
+	{
+		return m_players.RetrieveFromIndex(playerIndex);
+	}
+
+	inline const ServerPlayer* ServerInstance::GetPlayer(PlayerIndex playerIndex) const
+	{
+		return m_players.RetrieveFromIndex(playerIndex);
+	}
+
 	inline Nz::Time ServerInstance::GetTickDuration() const
 	{
 		return m_tickDuration;
